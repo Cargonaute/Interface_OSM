@@ -7,16 +7,20 @@
 
  STARTUP(WiFi.selectAntenna(ANT_EXTERNAL));
  #include "Nextion.h"
- #include "SparkTime.h"
  #define dbSerial Serial
+ #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
+ unsigned long lastSync = millis();
 
  USARTSerial& nexSerial = Serial1;
- UDP UDPClient;
- SparkTime rtc;
 
  unsigned long currentTime;
  unsigned long lastTime = 0UL;
- String timeStr;
+ char timeStr[20];
+
+ struct Event{
+
+
+ };
 
  /*
   * Declare l'objet bouton [page id:0,component id:1, component name: "b0"].
@@ -38,11 +42,8 @@
  NexNumber Trinc = NexNumber(2, 1, "rinc_h");
 
  NexNumber tl = NexNumber(1, 26, "tl");
- NexNumber tl_1 = NexNumber(1, 28, "tl_1");
- NexNumber tl_2 = NexNumber(1, 29, "tl_2");
  NexNumber tr = NexNumber(2, 26, "tr");
- NexNumber tr_1 = NexNumber(2, 28, "tr_1");
- NexNumber tr_2 = NexNumber(2, 29, "tr_2");
+
 
  /* Declare les valeurs associé a l'Osmose.
   */
@@ -64,53 +65,27 @@
  /* Données de la page SOMMAIRE de l'Osmose.
  */
  NexNumber bs = NexNumber(7, 17, "bs");
- NexNumber bs_1 = NexNumber(7, 22, "bs_1");
- NexNumber bs_2 = NexNumber(7, 31, "bs_2");
  NexNumber bc = NexNumber(7, 2, "bc");
- NexNumber bc_1 = NexNumber(7, 23, "bc_1");
- NexNumber bc_2 = NexNumber(7, 32, "bc_2");
  NexNumber pt = NexNumber(7, 16, "pt");
- NexNumber pt_1 = NexNumber(7, 45, "pt_1");
- NexNumber pt_2 = NexNumber(7, 51, "pt_2");
  NexNumber d1 = NexNumber(7, 3, "d1");
- NexNumber d1_1 = NexNumber(7, 24, "d1_1");
- NexNumber d1_2 = NexNumber(7, 33, "d1_2");
  NexNumber d2 = NexNumber(7, 4, "d2");
- NexNumber d2_1 = NexNumber(7, 25, "d2_1");
- NexNumber d2_2 = NexNumber(7, 34, "d2_2");
  NexNumber d3 = NexNumber(7, 5, "d3");
- NexNumber d3_1 = NexNumber(7, 26, "d3_1");
- NexNumber d3_2 = NexNumber(7, 35, "d3_2");
  NexNumber d4 = NexNumber(7, 6, "d4");
- NexNumber d4_1 = NexNumber(7, 27, "d4_1");
- NexNumber d4_2 = NexNumber(7, 36, "d4_2");
  NexNumber d5 = NexNumber(7, 5, "d5");
- NexNumber d5_1 = NexNumber(7, 28, "d5_1");
- NexNumber d5_2 = NexNumber(7, 37, "d5_2");
  NexNumber hr = NexNumber(7, 1, "hr");
- NexNumber hr_1 = NexNumber(7, 52, "hr_1");
- NexNumber hr_2 = NexNumber(7, 53, "hr_2");
  NexNumber tp = NexNumber(7, 8, "tp");
- NexNumber tp_1 = NexNumber(7, 29, "tp_1");
- NexNumber tp_2 = NexNumber(7, 38, "tp_2");
  NexNumber pr = NexNumber(7, 9, "pr");
- NexNumber pr_1 = NexNumber(7, 30, "pr_1");
- NexNumber pr_2 = NexNumber(7, 39, "pr_2");
+
+ NexText Som_1 = NexText(7, 25, "Som_1");
+ NexText Som_2 = NexText(7, 26, "Som_2");
 
  /* Le résultat des calculs de rendement
  */
  NexNumber cc = NexNumber(7, 13, "cc");
- NexNumber cc_1 = NexNumber(7, 40, "cc_1");
- NexNumber cc_2 = NexNumber(7, 46, "cc_2");
  NexNumber deb = NexNumber(7, 12, "deb");
- NexNumber deb_1 = NexNumber(7, 41, "deb_1");
- NexNumber deb_2 = NexNumber(7, 47, "deb_2");
  NexNumber dbf = NexNumber(7, 11, "dbf");
- NexNumber dbf_1 = NexNumber(7, 42, "dbf_1");
- NexNumber dbf_2 = NexNumber(7, 48, "dbf_2");
  NexNumber dbt = NexNumber(7, 10, "dbt");
- NexNumber dbt_1 = NexNumber(7, 43, "dbt_1");
- NexNumber dbt_2 = NexNumber(7, 49, "dbt_2");
+
 
  char buffer[100] = {0};
 
@@ -137,7 +112,7 @@
    uint32_t densiteSev;
    uint32_t densiteConc;
 
-   dbSerialPrintln("Bouton Densite OK");
+   Serial.println("Bouton Densite OK");
 
    bs.getValue(&densiteSev);
    bc.getValue(&densiteConc);
@@ -160,7 +135,7 @@
 
    uint32_t nb_poteau;
 
-   dbSerialPrintln("Bouton Debits OK");
+   Serial.println("Bouton Debits OK");
 
    //d1.setValue(debit1);
    d1.getValue(&debit1);
@@ -174,6 +149,8 @@
    d5.getValue(&debitC);
 
    pt.getValue(&nb_poteau);
+
+
 
  /* Affichage de la sélection de l'orientation des poteaux.
  */
@@ -204,7 +181,7 @@
    uint32_t temp;
    uint32_t pres;
 
-   dbSerialPrintln("Bouton Temp et Pression OK");
+   Serial.println("Bouton Temp et Pression OK");
 
    tp.getValue(&temp);
    pr.getValue(&pres);
@@ -225,7 +202,7 @@
  {
    uint32_t lavage;
 
-   dbSerialPrintln("Bouton Lavage OK");
+   Serial.println("Bouton Lavage OK");
 
    tl.getValue(&lavage);
 
@@ -240,7 +217,7 @@
  {
    uint32_t rincage;
 
-   dbSerialPrintln("Bouton Rincage OK");
+   Serial.println("Bouton Rincage OK");
 
    tr.getValue(&rincage);
 
@@ -252,10 +229,12 @@
      l'écran Nextion. */
 
      nexInit();
-     Serial.begin(9600);
+     //dbSerialBegin(9600);
+     dbSerialBegin(9600);
 
-     rtc.begin(&UDPClient, "north-america.pool.ntp.org");
-     rtc.setTimeZone(-4); // emt offset
+     //rtc.begin(&UDPClient, "north-america.pool.ntp.org");
+     //rtc.setTimeZone(-4); // emt offset
+     Time.zone(-4);
 
      /* Enregistre la fonction de l'évenement pop callback a la composante
      du courant bouton.*/
@@ -267,52 +246,51 @@
      OkL.attachPop(OkLPopCallback, &OkL);
      OkR.attachPop(OkRPopCallback, &OkR);
 
-     dbSerialPrintln("setup done");
+     Serial.println("setup done");
  }
 
  void loop(void)
  {
-      /* A chaque fois qu'un évenement pop ou push est activé,
-      la composante correspondant a la liste des évenements sera demandé. */
-     nexLoop(nex_listen_list);
-
-     /* Création de la date et l'heure d'affichage.
-     N.B. Il y a un délai avant l'affichage.*/
-
-     currentTime = rtc.now();
-     if (currentTime != lastTime) {
-       byte sec = rtc.second(currentTime);
-       if (sec == 10) {
- 	// Build Date String
- 	timeStr = " ";
-   timeStr += rtc.dayString(currentTime);
- 	timeStr += "/";
-   timeStr += rtc.monthString(currentTime);
- 	timeStr += "/";
- 	timeStr += rtc.yearString(currentTime);
-
-   date0.setText(timeStr);}/*
-
- 	Serial.println(timeStr);
-       } else if (sec == 40) {
- 	// Including current timezone
- 	Serial.println(rtc.ISODateString(currentTime));
-       } else if (sec == 50) {
- 	// UTC or Zulu time
- 	Serial.println(rtc.ISODateUTCString(currentTime));
-       } else {
- 	// Just the time in 12 hour format
- 	timeStr = "";
- 	timeStr += rtc.hour12String(currentTime);
- 	timeStr += ":";
- 	timeStr += rtc.minuteString(currentTime);
- 	timeStr += ":";
- 	timeStr += rtc.secondString(currentTime);
- 	timeStr += " ";
- 	timeStr += rtc.AMPMString(currentTime);
- 	Serial.println(timeStr);
+   if (millis() - lastSync > ONE_DAY_MILLIS) {
+     // Request time synchronization from the Particle Cloud
+     time_t lastSyncTimestamp;
+     unsigned long lastSync = Particle.timeSyncedLast(lastSyncTimestamp);
+     if (millis() - lastSync > ONE_DAY_MILLIS) {
+       unsigned long cur = millis();
+       Serial.printlnf("Time was last synchronized %lu milliseconds ago", millis() - lastSync);
+       if (lastSyncTimestamp > 0)
+       {
+         Serial.print("Time received from Particle Cloud was: ");
+         Serial.println(Time.timeStr(lastSyncTimestamp));
        }
-       lastTime = currentTime;*/
-     }
+       // Request time synchronization from Particle Cloud
+       Particle.syncTime();
+       // Wait until Photon receives time from Particle Cloud (or connection to Particle Cloud is lost)
+       waitUntil(Particle.syncTimeDone);
+       // Check if synchronized successfully
+       if (Particle.timeSyncedLast() >= cur)
+       {
+         // Print current time
+         Serial.println(Time.timeStr());
+       }
+     }   }
+    /* A chaque fois qu'un évenement pop ou push est activé,
+    la composante correspondant a la liste des évenements sera demandé. */
+
+   nexLoop(nex_listen_list);
+
+   /* Création de la date et l'heure d'affichage.
+   N.B. Il y a un délai avant l'affichage.*/
+
+   currentTime = Time.now();
+   if (currentTime != lastTime) {
+
+   	// Build Date String
+    sprintf(timeStr, "% 4d/%02d/%02d %02d:%02d:%02d", Time.year(currentTime), Time.month(currentTime), Time.day(currentTime),
+    Time.hour(currentTime), Time.minute(currentTime), Time.second(currentTime));
+    date0.setText(timeStr);
+    Serial.println(timeStr);
+    lastTime = currentTime;
+  }
 
  }
