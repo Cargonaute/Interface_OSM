@@ -17,10 +17,33 @@
  unsigned long lastTime = 0UL;
  char timeStr[20];
 
- struct Event{
+ // Variable relié à l'opération du buffer circulaire
+ const int buffSize = 4; // Nombre max d'événements que l'on peut sauvegarder
+ struct Sommaire{
+   uint32_t debit1 = 0;
+   uint32_t debit2 = 0;
+   uint32_t debit3 = 0;
+   uint32_t debit4 = 0;
+   uint32_t debitC = 0;
 
+   uint32_t resconc = 0;
+   uint32_t conheur = 0;
+   uint32_t debheur = 0;
+   uint32_t totdeb = 0;
 
+   uint32_t nb_poteau = 0; // Ordre de sequence d'osmose
+
+   uint32_t densiteSev = 0;
+   uint32_t densiteConc = 0;
+
+   uint32_t temp = 0;
+   uint32_t pres = 0;
  };
+
+struct Sommaire SC; // Sommaire Courant.
+struct Sommaire Som_hist1;  // Sommaire premiere ligne historique.
+struct Sommaire Som_hist2;  // Sommaire seconde ligne historique.
+struct Sommaire Som_hist3;  // Sommaire troisieme ligne historique.
 
  /*
   * Declare l'objet bouton [page id:0,component id:1, component name: "b0"].
@@ -34,6 +57,7 @@
  NexButton Ok = NexButton(7, 15, "ok"); // Bouton OK de la page 7 - SOMMAIRE OSM
  NexButton OkL = NexButton(1, 15, "ok"); // Bouton OK de la page 1 - LAVAGE
  NexButton OkR = NexButton(2, 15, "ok"); // Bouton OK de la page 2 - RINCAGE
+ NexButton OkHist = NexButton(7, 18, "OkHist"); // Bouton mise en historique.
 
  /* Declare les valeurs associé au lavage et rincage.
  */
@@ -52,6 +76,8 @@
  NexNumber DenC = NexNumber(4, 14, "val_con_br");
  NexDSButton SeqP = NexDSButton(4, 3, "sel_pot");
  NexText t0 = NexText(7, 19, "t0");
+ NexText hist_1 = NexText(7, 22, "hist_1");
+ NexText hist_2 = NexText(7, 23, "hist_2");
 
  NexNumber Deb1 = NexNumber(5, 1, "col1_deb");
  NexNumber Deb2 = NexNumber(5, 16, "col2_deb");
@@ -109,82 +135,88 @@
 
  void OkBPopCallback(void *ptr)  // Densité et utilisation des poteaux
  {
-   uint32_t densiteSev;
-   uint32_t densiteConc;
 
    Serial.println("Bouton Densite OK");
 
-   bs.getValue(&densiteSev);
-   bc.getValue(&densiteConc);
+   bs.getValue(&SC.densiteSev);
+   bc.getValue(&SC.densiteConc);
 
  }
 
+void OkHistPopCallback(void *ptr)
+{
+  String affHist1;
+  char affHist1_L1[40];
+  char affHist1_L2[40];
+  char affHist1_L3[40];
+  char affHist2;
+  Som_hist3 = Som_hist2;
+  Som_hist2 = Som_hist1;
+  Som_hist1 = SC;
+  sprintf(affHist1_L1, "%2d %2d  %4d %4d %4d %4d %4d  %3d %3d  %2d", Som_hist1.densiteSev,Som_hist1.densiteConc,Som_hist1.debit1,Som_hist1.debit2,Som_hist1.debit3,Som_hist1.debit4,Som_hist1.debitC,Som_hist1.temp,Som_hist1.pres);
+  // sprintf(affHist1_L1, "%2d", Som_hist1.densiteSev);
+  sprintf(affHist1_L2, "%2d %2d  %4d %4d %4d %4d %4d  %3d %3d  %2d", Som_hist2.densiteSev,Som_hist2.densiteConc,Som_hist2.debit1,Som_hist2.debit2,Som_hist2.debit3,Som_hist2.debit4,Som_hist2.debitC,Som_hist2.temp,Som_hist2.pres);
+  affHist1 = String(affHist1) + String(affHist1_L2);
+
+  hist_1.setText(affHist1);
+
+  Serial.println(affHist1);
+  // pense a delo!!!!!!
+  // sprintf(affHist2, "",Som_hist1.resconc,Som_hist1.conheur,Som_hist1.debheur,Som_hist1.totdeb); //Hist1.nb_poteau
+}
+
  void OkPopCallback(void *ptr)  // Les débits
  {
-
-   uint32_t debit1;
-   uint32_t debit2;
-   uint32_t debit3;
-   uint32_t debit4;
-   uint32_t debitC;
-
-   uint32_t resconc;
-   uint32_t conheur;
-   uint32_t debheur;
-   uint32_t totdeb;
-
-   uint32_t nb_poteau;
-
    Serial.println("Bouton Debits OK");
 
    //d1.setValue(debit1);
-   d1.getValue(&debit1);
+   d1.getValue(&SC.debit1);
    //d2.setValue(debit2);
-   d2.getValue(&debit2);
+   d2.getValue(&SC.debit2);
    //d3.setValue(debit3);
-   d3.getValue(&debit3);
+   d3.getValue(&SC.debit3);
    //d4.setValue(debit4);
-   d4.getValue(&debit4);
+   d4.getValue(&SC.debit4);
    //d5.setValue(debitC);
-   d5.getValue(&debitC);
+   d5.getValue(&SC.debitC);
 
-   pt.getValue(&nb_poteau);
+   pt.getValue(&SC.nb_poteau);
 
 
 
  /* Affichage de la sélection de l'orientation des poteaux.
  */
 
-   if(nb_poteau)
-   {t0.setText("4-3-2-1");}
+   if(SC.nb_poteau)
+     {t0.setText("4-3-2-1");}
    else
-   {t0.setText("1-2-3-4");}
+     {t0.setText("1-2-3-4");}
 
-   resconc = (((debit1 + debit2 + debit3 + debit4) * 100) / (debit1 + debit2 + debit3 + debit4 + debitC));
-   cc.setValue(resconc); // Poucentage de concentré.
+     SC.resconc = (((SC.debit1 + SC.debit2 + SC.debit3 + SC.debit4) * 100) /
+                (SC.debit1 + SC.debit2 + SC.debit3 + SC.debit4 + SC.debitC));
+     cc.setValue(SC.resconc); // Poucentage de concentré.
 
-   conheur = (debitC * 6);
-   deb.setValue(conheur); // Débit du concentré en Gallon/heure.
+     SC.conheur = (SC.debitC * 6);
+     deb.setValue(SC.conheur); // Débit du concentré en Gallon/heure.
 
-   debheur = ((debit1 + debit2 + debit3 + debit4) * 6);
-   dbf.setValue(debheur); // Débit du filtra par heure.
+     SC.debheur = ((SC.debit1 +SC.debit2 + SC.debit3 + SC.debit4) * 6);
+     dbf.setValue(SC.debheur); // Débit du filtra par heure.
 
-   totdeb = (conheur + debheur);
-   dbt.setValue(totdeb); // Débit total par heure.
+     SC.totdeb = (SC.conheur + SC.debheur);
+     dbt.setValue(SC.totdeb); // Débit total par heure.
 
+     Particle.publish("Data_OSM", "Dummy data", 60, PRIVATE);
  }
+
 
  void OkTPopCallback(void *ptr)  // Temperature et pression
 
  {
 
-   uint32_t temp;
-   uint32_t pres;
-
    Serial.println("Bouton Temp et Pression OK");
 
-   tp.getValue(&temp);
-   pr.getValue(&pres);
+   tp.getValue(&SC.temp);
+   pr.getValue(&SC.pres);
 
  }
 
@@ -245,6 +277,7 @@
      Ok.attachPop(OkPopCallback, &Ok);
      OkL.attachPop(OkLPopCallback, &OkL);
      OkR.attachPop(OkRPopCallback, &OkR);
+     OkHist.attachPop(OkHistPopCallback, &OkHist);
 
      Serial.println("setup done");
  }
